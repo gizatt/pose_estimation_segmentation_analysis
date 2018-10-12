@@ -1,0 +1,31 @@
+objects:
+  companion_cube:
+    model_path: "models/rlg_misc_models/companion_cube.urdf"
+instances:
+  - class: "companion_cube"
+    pose: [0.0, 0., 0.0, 0., 0., 0.]
+  - class: "companion_cube"
+    pose: [0.15, 0., 0.0, 0., 0., 0.]
+  - class: "companion_cube"
+    pose: [0.0, 0.1, 0.0, 0., 0., 0.]
+with_ground: True
+camera_config:
+  z_near: 0.2
+  z_far: 3.5
+  fov_y: .7853
+  width: 640
+  height: 480
+  viewpoints:
+    - eye: [1.0, 0., 0.5]
+      target: [0., 0., 0.]
+      up: [0., 0., 1.]
+    - eye: [-1.0, 0., 0.5]
+      target: [0., 0., 0.]
+      up: [0., 0., 1.]
+    - eye: [0., 1.0, 0.5]
+      target: [0., 0., 0.]
+      up: [0., 0., 1.]
+    - eye: [0., -1.0, 0.5]
+      target: [0., 0., 0.]
+      up: [0., 0., 1.]
+  
