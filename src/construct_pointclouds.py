@@ -105,6 +105,33 @@ def sample_points_on_body(rbt, body_index, density):
     return np.hstack(all_points), np.hstack(all_normals)
 
 
+def do_model_pointcloud_sampling(args, config, vis=None):
+    # For each class, sample model points on its surface.
+    for class_i, class_name in enumerate(config["objects"].keys()):
+        class_rbt = RigidBodyTree(config["objects"][class_name]["model_path"])
+        # Sample model points
+        model_points, model_normals = sample_points_on_body(class_rbt, 1, 0.005)
+        print "Sampled %d model points from model %s" % (
+            model_points.shape[1], class_name)
+        save_pointcloud(model_points, model_normals,
+                        os.path.join(args.dir, "%s.pc" % (class_name)))
+        if vis:
+            model_pts_offset = (model_points.T + [class_i, 0., -1.0]).T
+            vis[vis_prefix]["points_%s" % class_name].set_object(
+                g.PointCloud(position=model_pts_offset,
+                             color=None,
+                             size=0.001))
+            n_pts = model_points.shape[1]
+            # Drawing normals for debug
+            lines = np.zeros([3, n_pts*2])
+            inds = np.array(range(0, n_pts*2, 2))
+            lines[:, inds] = model_pts_offset[0:3, :]
+            lines[:, inds+1] = model_pts_offset[0:3, :] + model_normals * 0.01
+            vis[vis_prefix]["normals_%s" % class_name].set_object(
+                meshcat.geometry.LineSegmentsGeometry(
+                    lines, plt.cm.jet(np.arange(0., 1., n_pts*2))))
+
+
 def save_pointcloud(pc, normals, path):
     joined = np.hstack([pc.T, normals.T])
     np.savetxt(path, joined)
@@ -132,30 +159,7 @@ if __name__ == "__main__":
     config = yaml.load(open(
         os.path.join(args.dir, "scene_description.yaml")))
 
-    # For each class, sample model points on its surface.
-    for class_i, class_name in enumerate(config["objects"].keys()):
-        class_rbt = RigidBodyTree(config["objects"][class_name]["model_path"])
-        # Sample model points
-        model_points, model_normals = sample_points_on_body(class_rbt, 1, 0.005)
-        print "Sampled %d model points from model %s" % (
-            model_points.shape[1], class_name)
-        save_pointcloud(model_points, model_normals,
-                        os.path.join(args.dir, "%s.pc" % (class_name)))
-        if vis:
-            model_pts_offset = (model_points.T + [class_i, 0., -1.0]).T
-            vis[vis_prefix]["points_%s" % class_name].set_object(
-                g.PointCloud(position=model_pts_offset,
-                             color=None,
-                             size=0.001))
-            n_pts = model_points.shape[1]
-            # Drawing normals for debug
-            lines = np.zeros([3, n_pts*2])
-            inds = np.array(range(0, n_pts*2, 2))
-            lines[:, inds] = model_pts_offset[0:3, :]
-            lines[:, inds+1] = model_pts_offset[0:3, :] + model_normals * 0.01
-            vis[vis_prefix]["normals_%s" % class_name].set_object(
-                meshcat.geometry.LineSegmentsGeometry(
-                    lines, plt.cm.jet(np.arange(0., 1., n_pts*2))))
+    do_model_pointcloud_sampling(args, config, vis)
 
     rbt = RigidBodyTree()
     setup_scene(rbt, config)
