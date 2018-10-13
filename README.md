@@ -30,8 +30,6 @@ renders depth + RGB + mask images for that scene.
 
 ## CURRENT TODOS
 
-* Standalone utility to generate point cloud + normal for each model
-* Make `render_scene` output normal maps for each image
 * Make `construct_pointclouds` compile points + normals in each point cloud
 * Make `construct_pointclouds` spit out point cloud files for downstream consumption
 * Downstream consumption needs to happen!

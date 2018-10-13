@@ -2,6 +2,8 @@
 # Given a scene directory with a scene description file as well
 # as rendered images (using render_scene.py), generates
 # point clouds for input into pose estimation algorithms.
+# Generates both scene clouds (at different levels of segmentation)
+# and model clouds for each model.
 
 import yaml
 
@@ -51,6 +53,63 @@ from utils import (
     add_single_instance_to_rbt, setup_scene)
 
 
+def sample_points_on_body(rbt, body_index, density):
+    all_points = []
+    all_normals = []
+    body = rbt.get_body(body_index)
+    for visual_element in body.get_visual_elements():
+        if visual_element.hasGeometry():
+            geom = visual_element.getGeometry()
+            tf = visual_element.getLocalTransform()
+            points = geom.getPoints()
+            if geom.hasFaces():
+                faces = geom.getFaces()
+                new_points_pretf = []
+                new_normals_pretf = []
+                for face in faces:
+                    v1 = points[:, face[0]]
+                    v2 = points[:, face[1]]
+                    v3 = points[:, face[2]]
+                    # Roughly grid-like iteration over the triangle
+                    # surface -- not precise.
+                    # For each step along v1 --> v3,
+                    # step across the tri in the v1 --> v2 direction.
+                    v1_v2_dist = np.linalg.norm(v2 - v1)
+                    v1_v3_dist = np.linalg.norm(v3 - v1)
+                    v1_v2_n = (v2 - v1) / v1_v2_dist
+                    v1_v3_n = (v3 - v1) / v1_v3_dist
+                    n_steps = 0
+                    for outer_step in np.arange(0., v1_v3_dist, density):
+                        # We've advanced some percent up the triangle from
+                        # v1->v3, which means the distance *across* from
+                        # v1->v2 is less by a similar ratio.
+                        ratio = 1. - outer_step / v1_v3_dist
+                        for inner_step in np.arange(0., v1_v2_dist*ratio,
+                                                    density):
+                            pt = v1 + outer_step*v1_v3_n + inner_step*v1_v2_n
+                            new_points_pretf.append(pt)
+                            n_steps += 1
+
+                    # Normal assumes vertices listed in ccw order
+                    normal = np.cross(v1_v2_n, v1_v3_n)
+                    new_normals_pretf.append(np.tile(normal, [n_steps, 1]))
+
+                new_points_pretf = np.vstack(new_points_pretf).T
+                new_normals_pretf = np.vstack(new_normals_pretf).T
+            else:
+                raise ValueError("No-faces case not implemented...")
+            new_points = ((tf[:3, :3].dot(new_points_pretf)).T + tf[:3, 3]).T
+            new_normals = tf[:3, :3].dot(new_normals_pretf)
+            all_points.append(new_points)
+            all_normals.append(new_normals)
+    return np.hstack(all_points), np.hstack(all_normals)
+
+
+def save_pointcloud(pc, normals, path):
+    joined = np.hstack([pc.T, normals.T])
+    np.savetxt(path, joined)
+
+
 if __name__ == "__main__":
     np.set_printoptions(precision=5, suppress=True)
     parser = argparse.ArgumentParser()
@@ -73,6 +132,31 @@ if __name__ == "__main__":
     config = yaml.load(open(
         os.path.join(args.dir, "scene_description.yaml")))
 
+    # For each class, sample model points on its surface.
+    for class_i, class_name in enumerate(config["objects"].keys()):
+        class_rbt = RigidBodyTree(config["objects"][class_name]["model_path"])
+        # Sample model points
+        model_points, model_normals = sample_points_on_body(class_rbt, 1, 0.005)
+        print "Sampled %d model points from model %s" % (
+            model_points.shape[1], class_name)
+        save_pointcloud(model_points, model_normals,
+                        os.path.join(args.dir, "%s.pc" % (class_name)))
+        if vis:
+            model_pts_offset = (model_points.T + [class_i, 0., -1.0]).T
+            vis[vis_prefix]["points_%s" % class_name].set_object(
+                g.PointCloud(position=model_pts_offset,
+                             color=None,
+                             size=0.001))
+            n_pts = model_points.shape[1]
+            # Drawing normals for debug
+            lines = np.zeros([3, n_pts*2])
+            inds = np.array(range(0, n_pts*2, 2))
+            lines[:, inds] = model_pts_offset[0:3, :]
+            lines[:, inds+1] = model_pts_offset[0:3, :] + model_normals * 0.01
+            vis[vis_prefix]["normals_%s" % class_name].set_object(
+                meshcat.geometry.LineSegmentsGeometry(
+                    lines, plt.cm.jet(np.arange(0., 1., n_pts*2))))
+
     rbt = RigidBodyTree()
     setup_scene(rbt, config)
 
@@ -92,7 +176,7 @@ if __name__ == "__main__":
     depth_camera_pose = camera.depth_camera_optical_pose().matrix()
 
     # Build RBTs with each object individually present in them for
-    # doing distance checks
+    # doing distance checks, and for generating model point clouds
     q0 = np.zeros(6)
     single_object_rbts = []
     for instance_j, instance_config in enumerate(config["instances"]):
