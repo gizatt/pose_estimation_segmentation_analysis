@@ -30,6 +30,5 @@ renders depth + RGB + mask images for that scene.
 
 ## CURRENT TODOS
 
-* Make `construct_pointclouds` compile points + normals in each point cloud
 * Make `construct_pointclouds` spit out point cloud files for downstream consumption
 * Downstream consumption needs to happen!
