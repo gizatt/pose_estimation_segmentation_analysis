@@ -53,6 +53,31 @@ from utils import (
     add_single_instance_to_rbt, setup_scene)
 
 
+def save_pointcloud(pc, normals, path):
+    joined = np.hstack([pc.T, normals.T])
+    np.savetxt(path, joined)
+
+
+def draw_points(vis, vis_prefix, name, points,
+                normals=None, colors=None, size=0.001,
+                normals_length=0.01):
+    vis[vis_prefix][name].set_object(
+        g.PointCloud(position=points,
+                     color=colors,
+                     size=size))
+    n_pts = points.shape[1]
+    if normals is not None:
+        # Drawing normals for debug
+        lines = np.zeros([3, n_pts*2])
+        inds = np.array(range(0, n_pts*2, 2))
+        lines[:, inds] = points[0:3, :]
+        lines[:, inds+1] = points[0:3, :] + \
+            normals * normals_length
+        vis[vis_prefix]["%s_normals" % name].set_object(
+            meshcat.geometry.LineSegmentsGeometry(
+                lines, None))
+
+
 def sample_points_on_body(rbt, body_index, density):
     all_points = []
     all_normals = []
@@ -105,7 +130,7 @@ def sample_points_on_body(rbt, body_index, density):
     return np.hstack(all_points), np.hstack(all_normals)
 
 
-def do_model_pointcloud_sampling(args, config, vis=None):
+def do_model_pointcloud_sampling(args, config, vis=None, vis_prefix=None):
     # For each class, sample model points on its surface.
     for class_i, class_name in enumerate(config["objects"].keys()):
         class_rbt = RigidBodyTree(config["objects"][class_name]["model_path"])
@@ -117,24 +142,8 @@ def do_model_pointcloud_sampling(args, config, vis=None):
                         os.path.join(args.dir, "%s.pc" % (class_name)))
         if vis:
             model_pts_offset = (model_points.T + [class_i, 0., -1.0]).T
-            vis[vis_prefix]["points_%s" % class_name].set_object(
-                g.PointCloud(position=model_pts_offset,
-                             color=None,
-                             size=0.001))
-            n_pts = model_points.shape[1]
-            # Drawing normals for debug
-            lines = np.zeros([3, n_pts*2])
-            inds = np.array(range(0, n_pts*2, 2))
-            lines[:, inds] = model_pts_offset[0:3, :]
-            lines[:, inds+1] = model_pts_offset[0:3, :] + model_normals * 0.01
-            vis[vis_prefix]["normals_%s" % class_name].set_object(
-                meshcat.geometry.LineSegmentsGeometry(
-                    lines, plt.cm.jet(np.arange(0., 1., n_pts*2))))
-
-
-def save_pointcloud(pc, normals, path):
-    joined = np.hstack([pc.T, normals.T])
-    np.savetxt(path, joined)
+            draw_points(vis, vis_prefix, class_name, model_pts_offset,
+                        model_normals, size=0.001, normals_length=0.01)
 
 
 if __name__ == "__main__":
@@ -159,7 +168,7 @@ if __name__ == "__main__":
     config = yaml.load(open(
         os.path.join(args.dir, "scene_description.yaml")))
 
-    do_model_pointcloud_sampling(args, config, vis)
+    do_model_pointcloud_sampling(args, config, vis, vis_prefix)
 
     rbt = RigidBodyTree()
     setup_scene(rbt, config)
@@ -191,6 +200,7 @@ if __name__ == "__main__":
         single_object_rbts.append(new_rbt)
 
     all_points = []
+    all_points_normals = []
     all_points_labels = []
     all_points_distances = [[] for i in range(len(config["instances"]))]
 
@@ -218,14 +228,25 @@ if __name__ == "__main__":
         # and then to world frame
         # Last body = camera floating base
         kinsol = rbt.doKinematics(q0)
-
-        points = rbt.transformPoints(
-            kinsol, points[0:3, :], rbt.get_num_bodies()-1, 0)
+        tf = rbt.relativeTransform(kinsol, 0, rbt.get_num_bodies()-1)
+        points = tf.dot(points)[:3, :]
 
         label_image_name = "%09d_mask.png" % (i)
         labels = np.array(
             imageio.imread(os.path.join(args.dir, label_image_name))).ravel()
         labels = labels[good_points_mask]
+
+        normal_image_name = "%09d_normal.png" % (i)
+        # Empirically-derived transposing and memory reording to get into
+        # 3xN format...
+        normals = np.array(
+            imageio.imread(os.path.join(args.dir, normal_image_name)))
+        normals = normals.T.reshape(3, width*height, order='F')[
+            :, good_points_mask]
+        # Rescale from int8 to float values
+        normals = (normals.astype(np.float64)/127.)-1.
+        # And transform to camera frame and then to world frame
+        normals = tf[:3, :3].dot(depth_camera_pose[:3, :3].dot(normals))
 
         if vis:
             z_heights_normalized = (points[2, :]-np.min(points[2, :])) \
@@ -233,11 +254,12 @@ if __name__ == "__main__":
             label_separated_heights = z_heights_normalized + labels
             colors = cm.jet(label_separated_heights /
                             np.max(label_separated_heights)).T[0:3, :]
-            vis[vis_prefix]["points_%d" % i].set_object(
-                g.PointCloud(position=points,
-                             color=colors,
-                             size=0.005))
+            draw_points(vis, vis_prefix, "%d" % i, points,
+                        normals=normals, colors=colors, size=0.005,
+                        normals_length=0.01)
+
         all_points.append(points)
+        all_points_normals.append(normals)
         all_points_labels.append(labels)
 
         # Calculate distance to each object instance
@@ -250,13 +272,14 @@ if __name__ == "__main__":
             all_points_distances[instance_j].append(phi)
 
     all_points = np.hstack(all_points)
+    all_points_normals = np.hstack(all_points_normals)
     all_labels = np.hstack(all_points_labels)
     all_points_distances = [np.hstack(x) for x in all_points_distances]
     print "Combined to get %d points" % all_points.shape[1]
 
-    for instance_j, instance_config in enumerate(config["instances"]):
-        very_close_points = np.abs(all_points_distances[instance_j]) < 0.01
-        vis[vis_prefix]["points_close_to_obj_%d" % instance_j].set_object(
-                g.PointCloud(position=all_points[:, very_close_points],
-                             color=None,
-                             size=0.01))
+    #for instance_j, instance_config in enumerate(config["instances"]):
+    #    very_close_points = np.abs(all_points_distances[instance_j]) < 0.01
+    #    vis[vis_prefix]["points_close_to_obj_%d" % instance_j].set_object(
+    #            g.PointCloud(position=all_points[:, very_close_points],
+    #                         color=None,
+    #                         size=0.01))

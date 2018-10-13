@@ -173,7 +173,7 @@ if __name__ == "__main__":
         # for now, it's not too horrible for normals...
         save_image_uint8(
             "%s/%09d_normal.png" % (args.dir, i),
-            (normal_image+1.)*128)
+            (normal_image+1.)*127)
 
         u_data = output.get_data(camera.label_image_output_port().get_index()
                                  ).get_value()
