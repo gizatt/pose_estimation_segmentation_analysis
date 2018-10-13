@@ -71,6 +71,24 @@ def rgb2gray(rgb):
     return np.dot(rgb[..., :3], [0.299, 0.587, 0.114])
 
 
+def structured_normal_estimate(structured_point_cloud):
+    x_diff = np.zeros(structured_point_cloud.shape)
+    y_diff = np.zeros(structured_point_cloud.shape)
+    x_diff[1:-1, :, :] = (structured_point_cloud[2:, :, :] -
+                          structured_point_cloud[:-2, :, :])
+    y_diff[:, 1:-1, :] = (structured_point_cloud[:, 2:, :] -
+                          structured_point_cloud[:, :-2, :])
+    # You could do integral image computations here to do
+    # efficient regional smoothing and noise reduction.
+    # But for now, I'm using noise-free input point clouds,
+    # so it isn't necessary.
+    normals = np.cross(x_diff, y_diff)
+    norms = np.linalg.norm(normals, axis=-1)
+    for k in range(3):
+        normals[:, :, k] /= norms
+    return normals
+
+
 if __name__ == "__main__":
     np.set_printoptions(precision=5, suppress=True)
     parser = argparse.ArgumentParser()
@@ -129,6 +147,7 @@ if __name__ == "__main__":
         h, w, _ = u_data.data.shape
         depth_image = np.empty((h, w), dtype=np.float32)
         depth_image[:, :] = u_data.data[:, :, 0]
+
         out_of_range_mask = np.logical_or(depth_image < z_near,
                                           depth_image > z_far)
         depth_image[out_of_range_mask] = 0.
@@ -142,6 +161,19 @@ if __name__ == "__main__":
         save_image_uint16(
             "%s/%09d_depth.png" % (args.dir, i),
             depth_image*1000.)
+
+        # Compute normal image from the depth image
+        structured_point_cloud = camera.ConvertDepthImageToPointCloud(
+            u_data, camera.depth_camera_info())
+        structured_point_cloud = structured_point_cloud.T.reshape([h, w, 3])
+        normal_image = structured_normal_estimate(
+            structured_point_cloud)
+        # TODO: Precision is bad here (8-bit per channel), but imageio
+        # doesn't want to export 3-channel 16bit images. OK with the loss
+        # for now, it's not too horrible for normals...
+        save_image_uint8(
+            "%s/%09d_normal.png" % (args.dir, i),
+            (normal_image+1.)*128)
 
         u_data = output.get_data(camera.label_image_output_port().get_index()
                                  ).get_value()
