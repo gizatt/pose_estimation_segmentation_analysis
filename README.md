@@ -15,11 +15,12 @@ Layout:
         * segdist_%02.03f_views_%b%b%b%b... (0 or 1 per camera view to indicate inclusion)
             * %03d.pts (Pointcloud cropped around object by index)
         * scene_description.yaml
+        * model_name.pc (generated point cloud + normals for each object class name)
 
 * results
     * %s (Technique name)
         * %09d_scene
-            * Condition name
+            * segdist_%02.03f_views_%b%b%b%b... (0 or 1 per camera view to indicate inclusion)
                 * estimated_scene_description.yaml
 * src
     * \*.py
