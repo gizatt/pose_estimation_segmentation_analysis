@@ -26,7 +26,9 @@ import meshcat.geometry as g
 from icp import do_point2point_icp_fit
 
 import transformations
-from utils import load_pointcloud, draw_points, get_pose_error
+from utils import (
+    load_pointcloud, draw_points, get_pose_error,
+    get_earth_movers_error)
 
 if __name__ == "__main__":
     np.set_printoptions(precision=5, suppress=True)
@@ -121,5 +123,19 @@ if __name__ == "__main__":
 
                         # Compute pose TF and geodesic rotation error:
                         euclid_dist, angle_dist = get_pose_error(est_tf, gt_tf)
-                        print "\t.... Euclid dist: %f" % (euclid_dist)
-                        print "\t.... Angle dist: %f" % (angle_dist)
+                        # print "\t.... Euclid dist: %f" % (euclid_dist)
+                        # print "\t.... Angle dist: %f" % (angle_dist)
+
+                        # Compute an earth-movers-distance-like error term --
+                        # in this case, the percent of model points that are
+                        # more than `misalignment_tol` away from the model in
+                        # its ground truth posture (using a nearest-neighbor
+                        # check).
+                        # Anythin over 10%>, when using misalignment_tol=1cm,
+                        # indicates a bad fit.
+                        earth_movers_error = get_earth_movers_error(
+                            est_tf, gt_tf,
+                            model_clouds_by_classname[class_name][0],
+                            misalignment_tol=0.01)
+                        print "\t.... Avg Earth Movers dist: %f" % (
+                            earth_movers_error)

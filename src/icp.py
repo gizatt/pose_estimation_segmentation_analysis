@@ -179,8 +179,8 @@ def do_point2point_icp_fit(scene_points, scene_points_normals,
             draw_model_fit_pts(
                 vis[obj_name], model_points, tf,
                 plt.cm.jet(score)[0:3])
-        print "%d: Mean resulting surface SDF value: %f" % (k, score)
+        # print "%d: Mean resulting surface SDF value: %f" % (k, score)
 
     best_run = np.argmin(scores)
-    print "Best run was run %d with score %f" % (best_run, scores[best_run])
+    # print "Best run was run %d with score %f" % (best_run, scores[best_run])
     return tfs[best_run]

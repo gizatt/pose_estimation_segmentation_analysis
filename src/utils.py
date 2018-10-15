@@ -1,5 +1,6 @@
 import numpy as np
 import os
+from sklearn.neighbors import NearestNeighbors
 
 from pydrake.multibody.rigid_body import RigidBody
 from pydrake.all import (
@@ -59,6 +60,33 @@ def get_pose_error(tf_1, tf_2):
             (np.sum(np.diag(rel_tf[0:3, 0:3])) - 1) / 2.)
     euclid_dist = np.linalg.norm(rel_tf[0:3, 3])
     return euclid_dist, angle_dist
+
+
+# If misalignment_tol = None, returns the average
+# distance between the model clouds when transformed
+# by est_tf and gt_tf (using nearest-point lookups
+# for each point in the gt-tf'd model cloud).
+# If misalignment_tol is a number, it returns
+# the percent of points that are misaligned by more
+# than the misalignment error under the same distance
+# metric.
+def get_earth_movers_error(est_tf, gt_tf, model_cloud,
+                           misalignment_tol=0.005):
+    # Transform the model cloud into both frames
+    est_model_cloud = transform_points(est_tf, model_cloud)
+    gt_model_cloud = transform_points(gt_tf, model_cloud)
+    # For every point in the model cloud, find the distance
+    # to the closest point in the estimated model cloud,
+    # as a way of finding the swept volume between the
+    # models in those poses.
+    neigh = NearestNeighbors(n_neighbors=1)
+    neigh.fit(gt_model_cloud.T)
+    dist, _ = neigh.kneighbors(
+        est_model_cloud[0:3, :].T, return_distance=True)
+    if misalignment_tol is None:
+        return np.mean(dist)
+    else:
+        return np.mean(dist > misalignment_tol)
 
 
 def draw_points(vis, vis_prefix, name, points,
