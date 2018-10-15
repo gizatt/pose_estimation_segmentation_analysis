@@ -12,12 +12,15 @@ Layout:
         * %09d_depth.png
         * %02d_%09d_mask.png
         * %09d_info.yaml
-        * fused_pointcloud.ply
+        * segdist_%02.03f_views_%b%b%b%b... (0 or 1 per camera view to indicate inclusion)
+            * %03d.pts (Pointcloud cropped around object by index)
         * scene_description.yaml
+
 * results
-    * %09d_scene
-        * %s
-            * estimated_scene_description.yaml
+    * %s (Technique name)
+        * %09d_scene
+            * Condition name
+                * estimated_scene_description.yaml
 * src
     * \*.py
 
@@ -26,9 +29,29 @@ Layout:
 
 * `render_scene.py`: Given a scene directory with a `scene_description.yaml`,
 renders depth + RGB + mask images for that scene.
+* `construct_pointclouds.py`: Given a scene directory with a
+`scene_description.yaml`, fuses the depth images from that directory to produce
+synthetic reconstructed point clouds with normals. Saves out
+point clouds for each of the conditions we plan on testing: variation over
+segmentation quality (by nearest neighbor distance -- TODO, maybe
+also try by pixel distance in depth images?) and number of views in the
+reconstruction.
+
+
+## Questions to answer (in rough order)
+
+* Under different levels of model occlusion, is the
+ground truth pose close to a fixed point? (Given perfect scene segmentation
+of scenes from 1, 2, and 3 cameras, does each technique return the ground
+truth pose when seeded from the ground truth pose?)
+
+* How does technique accuracy covary with different levels of model occlusion
+and segmentation quality?
 
 
 ## CURRENT TODOS
 
-* Make `construct_pointclouds` spit out point cloud files for downstream consumption
-* Downstream consumption needs to happen!
+* Make a generic downstream consumer interface that loads in model + scene pointcloud + normals,
+  queries the downstream technique for an estimated pose, and scores it (record timing, record
+  euclidean + rotational distance, and also record visual surface discrepancy).
+* Implement above interface for vanilla (parameterized outlier-rejection) ICP

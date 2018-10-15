@@ -8,6 +8,7 @@
 import yaml
 
 import argparse
+import itertools
 import os
 import random
 import time
@@ -152,7 +153,7 @@ if __name__ == "__main__":
     parser.add_argument("dir",
                         type=str,
                         help="Directory to find scene_description.yaml and to "
-                             " save rendered images.")
+                             " save reconstructed point clouds.")
     parser.add_argument("-v", "--vis",
                         action='store_true',
                         help="Visualize pointclouds in meshcat?")
@@ -271,15 +272,34 @@ if __name__ == "__main__":
                                            points, use_margins=False)
             all_points_distances[instance_j].append(phi)
 
-    all_points = np.hstack(all_points)
-    all_points_normals = np.hstack(all_points_normals)
-    all_labels = np.hstack(all_points_labels)
-    all_points_distances = [np.hstack(x) for x in all_points_distances]
-    print "Combined to get %d points" % all_points.shape[1]
+    # For every number of camera views we could sample...
+    for view_inclusion in itertools.product([0, 1], repeat=len(all_points)):
+        # Collate the appropriate points, normals, etc from these views.
+        inds = np.nonzero(view_inclusion)[0]
+        if len(inds) == 0:
+            continue
+        these_points = np.hstack([all_points[k] for k in inds])
+        these_points_normals = np.hstack([
+            all_points_normals[k] for k in inds])
+        these_points_labels = np.hstack([all_points_labels[k] for k in inds])
+        these_points_distances = [np.hstack([
+            x[k] for k in inds]) for x in all_points_distances]
+        print "In view inclusion ", inds, " combined to get ", \
+              these_points.shape[1], " points."
 
-    #for instance_j, instance_config in enumerate(config["instances"]):
-    #    very_close_points = np.abs(all_points_distances[instance_j]) < 0.01
-    #    vis[vis_prefix]["points_close_to_obj_%d" % instance_j].set_object(
-    #            g.PointCloud(position=all_points[:, very_close_points],
-    #                         color=None,
-    #                         size=0.01))
+        # For every object...
+        segmentation_distances = [0.005, 0.01, 0.05, 0.1]
+        for instance_j, instance_config in enumerate(config["instances"]):
+            # Find objects within each segmentation distance
+            for segmentation_distance in segmentation_distances:
+                very_close_points = np.abs(these_points_distances[instance_j])\
+                    < segmentation_distance
+                condition_name = "segdist_%02.03f_views_" % (
+                    segmentation_distance)
+                condition_name += "".join([str(x) for x in view_inclusion])
+                os.system("mkdir -p " + os.path.join(args.dir, condition_name))
+                save_file = os.path.join(args.dir, condition_name,
+                                         "%03d.pc" % instance_j)
+                save_pointcloud(these_points[:, very_close_points],
+                                these_points_normals[:, very_close_points],
+                                save_file)
