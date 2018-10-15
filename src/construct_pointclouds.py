@@ -51,32 +51,8 @@ import meshcat.geometry as g
 
 from utils import (
     lookat, transform_inverse,
-    add_single_instance_to_rbt, setup_scene)
-
-
-def save_pointcloud(pc, normals, path):
-    joined = np.hstack([pc.T, normals.T])
-    np.savetxt(path, joined)
-
-
-def draw_points(vis, vis_prefix, name, points,
-                normals=None, colors=None, size=0.001,
-                normals_length=0.01):
-    vis[vis_prefix][name].set_object(
-        g.PointCloud(position=points,
-                     color=colors,
-                     size=size))
-    n_pts = points.shape[1]
-    if normals is not None:
-        # Drawing normals for debug
-        lines = np.zeros([3, n_pts*2])
-        inds = np.array(range(0, n_pts*2, 2))
-        lines[:, inds] = points[0:3, :]
-        lines[:, inds+1] = points[0:3, :] + \
-            normals * normals_length
-        vis[vis_prefix]["%s_normals" % name].set_object(
-            meshcat.geometry.LineSegmentsGeometry(
-                lines, None))
+    add_single_instance_to_rbt, setup_scene,
+    save_pointcloud, draw_points)
 
 
 def sample_points_on_body(rbt, body_index, density):

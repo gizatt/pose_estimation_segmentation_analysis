@@ -22,6 +22,10 @@ from pydrake.all import (
         VisualElement,
     )
 
+import meshcat
+import meshcat.transformations as tf
+import meshcat.geometry as g
+
 
 # From
 # https://www.opengl.org/discussion_boards/showthread.php/197893-View-and-Perspective-matrices
@@ -29,10 +33,56 @@ def normalize(x):
     return x / np.linalg.norm(x)
 
 
+def save_pointcloud(pc, normals, path):
+    joined = np.hstack([pc.T, normals.T])
+    np.savetxt(path, joined)
+
+
+def load_pointcloud(path):
+    joined = np.loadtxt(path)
+    return joined[:, 0:3].T, joined[:, 3:6].T
+
+
 def translate(x):
     T = np.eye(4)
     T[0:3, 3] = x[:3]
     return T
+
+
+def get_pose_error(tf_1, tf_2):
+    rel_tf = transform_inverse(tf_1).dot(tf_2)
+    if np.allclose(np.diag(rel_tf[0:3, 0:3]), [1., 1., 1.]):
+        angle_dist = 0.
+    else:
+        # Angle from rotation matrix
+        angle_dist = np.arccos(
+            (np.sum(np.diag(rel_tf[0:3, 0:3])) - 1) / 2.)
+    euclid_dist = np.linalg.norm(rel_tf[0:3, 3])
+    return euclid_dist, angle_dist
+
+
+def draw_points(vis, vis_prefix, name, points,
+                normals=None, colors=None, size=0.001,
+                normals_length=0.01):
+    vis[vis_prefix][name].set_object(
+        g.PointCloud(position=points,
+                     color=colors,
+                     size=size))
+    n_pts = points.shape[1]
+    if normals is not None:
+        # Drawing normals for debug
+        lines = np.zeros([3, n_pts*2])
+        inds = np.array(range(0, n_pts*2, 2))
+        lines[:, inds] = points[0:3, :]
+        lines[:, inds+1] = points[0:3, :] + \
+            normals * normals_length
+        vis[vis_prefix]["%s_normals" % name].set_object(
+            meshcat.geometry.LineSegmentsGeometry(
+                lines, None))
+
+
+def transform_points(tf, pts):
+    return ((tf[:3, :3].dot(pts).T) + tf[:3, 3]).T
 
 
 def transform_inverse(tf):

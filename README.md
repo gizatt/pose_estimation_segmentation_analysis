@@ -21,7 +21,7 @@ Layout:
     * %s (Technique name)
         * %09d_scene
             * segdist_%02.03f_views_%b%b%b%b... (0 or 1 per camera view to indicate inclusion)
-                * estimated_scene_description.yaml
+                * fits.yaml (Contains *list* of fit attempts with instance, error, etc annotations inline)
 * src
     * \*.py
 
