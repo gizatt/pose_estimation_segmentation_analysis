@@ -123,4 +123,3 @@ if __name__ == "__main__":
                         euclid_dist, angle_dist = get_pose_error(est_tf, gt_tf)
                         print "\t.... Euclid dist: %f" % (euclid_dist)
                         print "\t.... Angle dist: %f" % (angle_dist)
-

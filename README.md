@@ -56,3 +56,10 @@ and segmentation quality?
   queries the downstream technique for an estimated pose, and scores it (record timing, record
   euclidean + rotational distance, and also record visual surface discrepancy).
 * Implement above interface for vanilla (parameterized outlier-rejection) ICP
+
+## GRIPES
+
+* Vanilla ICP currently finds the closest scene point to every model point. But we know that
+we'll usually be missing more scene points than model points (thanks to partial views /
+occlusion), so we should really flip that. That I'm doing constant-distance outlier rejection
+tempers this issue a bit but this could still be to blame for the poor convergence?
