@@ -57,7 +57,6 @@ if __name__ == "__main__":
     all_method_params = {
         "icp": {"n_attempts": 1,
                 "max_iters_per_attempt": 1000,
-                "vis": vis,
                 "tf_init": None}
     }
     if args.method_name not in all_method_fitter_handles.keys():
@@ -67,6 +66,8 @@ if __name__ == "__main__":
 
     example_format = "segdist_{:f}_views_{}"
     instance_matcher = re.compile("[0-9][0-9][0-9].pc")
+
+    do_gt_init = True
 
     # Go through all scenes...
     try:
@@ -101,6 +102,10 @@ if __name__ == "__main__":
                         if os.path.isfile(results_yaml_filename):
                             with open(results_yaml_filename, 'r') as f:
                                 results_config = yaml.load(f)
+                                if type(results_config) != list:
+                                    print "Loaded results config of " \
+                                          "wrong type, nuking..."
+                                    results_config = []
                         else:
                             results_config = []
 
@@ -132,12 +137,17 @@ if __name__ == "__main__":
                                     scene_points,
                                     )
 
+                            if do_gt_init:
+                                method_params["tf_init"] = gt_tf.copy()
+
                             # Finally, run the fitter!
+                            start_time = time.time()
                             est_tf = method_fitter_handle(
                                 scene_points, scene_points_normals,
                                 model_clouds_by_classname[class_name][0],
                                 model_clouds_by_classname[class_name][1],
-                                method_params)
+                                method_params, vis=vis)
+                            elapsed = time.time() - start_time
 
                             # Compute pose TF and geodesic rotation error:
                             euclid_dist, angle_dist = get_pose_error(
@@ -161,6 +171,7 @@ if __name__ == "__main__":
 
                             results_config.append({
                                 "timestamp": time.time(),
+                                "elasped": float(elapsed),
                                 "instance": int(instance_j),
                                 "model_name": str(class_name),
                                 "views": str(views),
@@ -169,7 +180,9 @@ if __name__ == "__main__":
                                 "est_tf": est_tf.tolist(),
                                 "euclid_dist": float(euclid_dist),
                                 "angle_dist": float(angle_dist),
-                                "earth_movers_error": float(earth_movers_error)
+                                "earth_movers_error": float(
+                                    earth_movers_error),
+                                "params": method_params
                                 })
 
                         with open(results_yaml_filename, 'w') as f:

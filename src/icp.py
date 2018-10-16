@@ -76,10 +76,9 @@ def draw_model_fit_pts(vis_handle, model_points, tf, color):
 
 def do_point2point_icp_fit(scene_points, scene_points_normals,
                            model_points, model_points_normals,
-                           params):
+                           params, vis=None):
     n_attempts = params["n_attempts"]
     max_iters_per_attempt = params["max_iters_per_attempt"]
-    vis = params["vis"]
     if vis:
         vis = vis["point2point_icp"]
     scores = []
