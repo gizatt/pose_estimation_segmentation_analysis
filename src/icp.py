@@ -22,7 +22,7 @@ from pydrake.all import (
 )
 
 
-from utils import transform_points
+from utils import transform_points, transform_inverse
 
 
 def Rgba2Hex(rgb):
@@ -40,23 +40,41 @@ def return_normalized(array):
     return (array - np.min(array)) / (np.max(array) - np.min(array))
 
 
-def get_inlier_model_and_scene_points(
-        neigh, tf_model_points, scene_points,
-        scene_points_normals):
+def get_inlier_model_and_scene_points_scene2model(
+        neigh, model_points, scene_points, tf,
+        outlier_max_distance=0.01, outlier_rejection_ratio=0.3):
+    # Still returns results in world frame, but needs
+    # the model tf to get the scene points in model
+    # frame to do the closest point check.
     distances, indices = neigh.kneighbors(
-        tf_model_points[0:3, :].T, return_distance=True)
+        transform_points(transform_inverse(tf),
+                         scene_points[0:3, :]).T,
+        return_distance=True)
     inlier_mask = np.logical_or(
-        distances < distances.mean()*100.,
-        distances < 0.02)[:, 0]
-
+        distances < outlier_max_distance,
+        distances < distances.mean()*outlier_rejection_ratio)[:, 0]
     if inlier_mask.sum() == 0:
         inlier_mask += True
 
-    model_pts_inlier = tf_model_points[:, inlier_mask]
+    model_pts_inlier = model_points[:, indices[inlier_mask]][:, :, 0]
+    scene_pts_inlier = scene_points[:, inlier_mask]
+    return model_pts_inlier, scene_pts_inlier
+
+
+def get_inlier_model_and_scene_points_model2scene(
+        neigh, model_points, scene_points,
+        outlier_max_distance=0.01, outlier_rejection_ratio=0.3):
+    distances, indices = neigh.kneighbors(model_points[0:3, :].T,
+                                          return_distance=True)
+    inlier_mask = np.logical_or(
+        distances < outlier_max_distance,
+        distances < distances.mean()*outlier_rejection_ratio)[:, 0]
+    if inlier_mask.sum() == 0:
+        inlier_mask += True
+
+    model_pts_inlier = model_points[:, inlier_mask]
     scene_pts_inlier = scene_points[:, indices[inlier_mask]][:, :, 0]
-    scene_pts_inlier_normals = scene_points_normals[
-        :, indices[inlier_mask]][:, :, 0]
-    return model_pts_inlier, scene_pts_inlier, scene_pts_inlier_normals
+    return model_pts_inlier, scene_pts_inlier
 
 
 def draw_model_fit_pts(vis_handle, model_points, tf, color):
@@ -79,6 +97,9 @@ def do_point2point_icp_fit(scene_points, scene_points_normals,
                            params, vis=None):
     n_attempts = params["n_attempts"]
     max_iters_per_attempt = params["max_iters_per_attempt"]
+    model2scene = params["model2scene"]
+    outlier_rejection_ratio = params["outlier_rejection_ratio"]
+    outlier_max_distance = params["outlier_max_distance"]
     if vis:
         vis = vis["point2point_icp"]
     scores = []
@@ -107,7 +128,10 @@ def do_point2point_icp_fit(scene_points, scene_points_normals,
         scale = np.eye(4)
 
         neigh = NearestNeighbors(n_neighbors=1)
-        neigh.fit(scene_points.T)
+        if model2scene:
+            neigh.fit(scene_points.T)
+        else:
+            neigh.fit(model_points.T)
 
         if vis:
             obj_name = "fits/obj_%d" % k
@@ -123,12 +147,17 @@ def do_point2point_icp_fit(scene_points, scene_points_normals,
             tf_model_points = transform_points(tf, model_points)
             # (Re)compute nearest neighbors for some of these methods
 
-            model_pts_inlier, scene_pts_inlier, \
-                scene_pts_inlier_normals = \
-                get_inlier_model_and_scene_points(
-                    neigh, tf_model_points, scene_points,
-                    scene_points_normals)
-            if 0 and vis:
+            if model2scene:
+                model_pts_inlier, scene_pts_inlier = \
+                    get_inlier_model_and_scene_points_model2scene(
+                        neigh, tf_model_points, scene_points,
+                        outlier_max_distance, outlier_rejection_ratio)
+            else:
+                model_pts_inlier, scene_pts_inlier = \
+                    get_inlier_model_and_scene_points_scene2model(
+                        neigh, tf_model_points, scene_points, tf,
+                        outlier_max_distance, outlier_rejection_ratio)
+            if vis:
                 # Vis correspondences
                 n_pts = scene_pts_inlier.shape[1]
                 lines = np.zeros([3, n_pts*2])
@@ -165,11 +194,16 @@ def do_point2point_icp_fit(scene_points, scene_points_normals,
 
         # Compute final fit cost
         tf_model_points = transform_points(tf, model_points)
-        model_pts_inlier, scene_pts_inlier, \
-            scene_pts_inlier_normals = \
-            get_inlier_model_and_scene_points(
-                neigh, tf_model_points, scene_points,
-                scene_points_normals)
+        if model2scene:
+            model_pts_inlier, scene_pts_inlier = \
+                get_inlier_model_and_scene_points_model2scene(
+                    neigh, tf_model_points, scene_points,
+                    outlier_max_distance, outlier_rejection_ratio)
+        else:
+            model_pts_inlier, scene_pts_inlier = \
+                get_inlier_model_and_scene_points_scene2model(
+                    neigh, tf_model_points, scene_points, tf,
+                    outlier_max_distance, outlier_rejection_ratio)
         score = np.square((model_pts_inlier - scene_pts_inlier)).mean()
         tfs.append(tf)
         scores.append(score)

@@ -42,7 +42,13 @@ if __name__ == "__main__":
     parser.add_argument("-v", "--vis",
                         action='store_true',
                         help="Visualize things in meshcat?")
+    parser.add_argument("--seed",
+                        default=int(time.time()*1000),
+                        help="Random number seed")
     args = parser.parse_args()
+
+    np.random.seed(args.seed % (2**31))
+    random.seed(args.seed)
 
     vis = None
     if args.vis:
@@ -57,7 +63,10 @@ if __name__ == "__main__":
     all_method_params = {
         "icp": {"n_attempts": 1,
                 "max_iters_per_attempt": 1000,
-                "tf_init": None}
+                "tf_init": None,
+                "model2scene": False,
+                "outlier_max_distance": 0.01,
+                "outlier_rejection_ratio": 0.3}
     }
     if args.method_name not in all_method_fitter_handles.keys():
         raise ValueError("Method %s not known!" % args.method_name)
@@ -67,7 +76,7 @@ if __name__ == "__main__":
     example_format = "segdist_{:f}_views_{}"
     instance_matcher = re.compile("[0-9][0-9][0-9].pc")
 
-    do_gt_init = True
+    do_gt_init = False
 
     # Go through all scenes...
     try:
@@ -94,7 +103,7 @@ if __name__ == "__main__":
 
                         # Open the results yaml
                         results_yaml_pathname = os.path.join(
-                            "results", args.method_name, scene_dir,
+                            "results", args.method_name, scene_foldername,
                             example_foldername)
                         os.system("mkdir -p %s" % results_yaml_pathname)
                         results_yaml_filename = os.path.join(
@@ -182,7 +191,8 @@ if __name__ == "__main__":
                                 "angle_dist": float(angle_dist),
                                 "earth_movers_error": float(
                                     earth_movers_error),
-                                "params": method_params
+                                "params": method_params,
+                                "do_gt_init": do_gt_init
                                 })
 
                         with open(results_yaml_filename, 'w') as f:
