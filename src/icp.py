@@ -136,7 +136,7 @@ def do_point2point_icp_fit(scene_points, scene_points_normals,
         if vis:
             obj_name = "fits/obj_%d" % k
             draw_model_fit_pts(
-                vis[obj_name], model_points, tf, [1., 1., 1.])
+                vis[obj_name], model_points, tf, [1., 0.8, 0.])
 
         num_steps_at_standstill = 0
         for i in range(max_iters_per_attempt):
@@ -160,8 +160,13 @@ def do_point2point_icp_fit(scene_points, scene_points_normals,
             if vis:
                 # Vis correspondences
                 n_pts = scene_pts_inlier.shape[1]
+
+                pt = np.zeros(3, N)
+                tf = 4x4
+
+
                 lines = np.zeros([3, n_pts*2])
-                colors = np.zeros([4, n_pts*2])
+                colors = np.zeros([4, n_pts*2]).T
                 inds = np.array(range(0, n_pts*2, 2))
                 lines[:, inds] = model_pts_inlier[0:3, :]
                 lines[:, inds+1] = scene_pts_inlier[0:3, :]
@@ -213,7 +218,8 @@ def do_point2point_icp_fit(scene_points, scene_points_normals,
                 vis[obj_name], model_points, tf,
                 plt.cm.jet(score)[0:3])
         # print "%d: Mean resulting surface SDF value: %f" % (k, score)
-
+        time.sleep(1.0)
+        
     best_run = np.argmin(scores)
     # print "Best run was run %d with score %f" % (best_run, scores[best_run])
     return tfs[best_run]

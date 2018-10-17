@@ -145,7 +145,9 @@ def lookat(eye, target, up):
     return T.dot(M)
 
 
-def add_single_instance_to_rbt(rbt, config, instance_config, i):
+def add_single_instance_to_rbt(
+        rbt, config, instance_config, i,
+        floating_base_type=FloatingBaseType.kRollPitchYaw):
     class_name = instance_config["class"]
     if class_name not in config["objects"].keys():
         raise ValueError("Class %s not in classes." % class_name)
@@ -160,10 +162,10 @@ def add_single_instance_to_rbt(rbt, config, instance_config, i):
     _, extension = os.path.splitext(model_path)
     if extension == ".urdf":
         AddModelInstanceFromUrdfFile(
-            model_path, FloatingBaseType.kFixed, frame, rbt)
+            model_path, floating_base_type, frame, rbt)
     elif extension == ".sdf":
         AddModelInstancesFromSdfString(
-            open(model_path), FloatingBaseType.kFixed, frame, rbt)
+            open(model_path).read(), floating_base_type, frame, rbt)
     else:
         raise ValueError("Class %s has non-sdf and non-urdf model name." %
                          class_name)
@@ -174,8 +176,8 @@ def setup_scene(rbt, config):
         AddFlatTerrainToWorld(rbt)
 
     for i, instance_config in enumerate(config["instances"]):
-        add_single_instance_to_rbt(rbt, config, instance_config, i)
-
+        add_single_instance_to_rbt(rbt, config, instance_config, i,
+                                   floating_base_type=FloatingBaseType.kFixed)
     # Add camera geometry!
     camera_link = RigidBody()
     camera_link.set_name("camera_link")

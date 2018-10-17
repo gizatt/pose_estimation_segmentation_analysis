@@ -1,0 +1,49 @@
+<?xml version="1.0" ?>
+<sdf version='1.6'>
+  <model name='cyl_1'>
+    <link name='cyl_1'>
+      <pose frame=''>0 0 0 0 0 0</pose>
+      <inertial>
+        <pose frame=''>0.005408 -0.000000 -0.000000 0. 0. 0.</pose>
+        <mass>1.06412705259e-05</mass>
+        <inertia>
+          <ixx>1.97869036016e-09</ixx>
+          <ixy>-7.43341607648e-13</ixy>
+          <ixz>2.38581936346e-26</ixz>
+          <iyy>1.66748646243e-09</iyy>
+          <iyz>-3.23214532499e-27</iyz>
+          <izz>5.53088420197e-10</izz>
+        </inertia>
+      </inertial>
+      <visual>
+        <pose frame=''>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>models/half_carrot_models/meshes/cyl_1.obj</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <ambient>0.75 0.2 0.2 1.0</ambient>
+          <diffuse>0.75 0.2 0.2 1.0</diffuse>
+          <specular>0.01 0.01 0.01 1</specular>
+          <emissive>0 0 0 1</emissive>
+          <shader type='vertex'>
+            <normal_map>__default__</normal_map>
+          </shader>
+        </material>
+      </visual>
+      <collision>
+        <pose frame=''>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>models/half_carrot_models/meshes/cyl_1.obj</uri>
+          </mesh>
+        </geometry>
+      </collision>
+      <gravity>1</gravity>
+      <self_collide>0</self_collide>
+    </link>
+  </model>
+</sdf>

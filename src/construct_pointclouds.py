@@ -110,9 +110,25 @@ def sample_points_on_body(rbt, body_index, density):
 def do_model_pointcloud_sampling(args, config, vis=None, vis_prefix=None):
     # For each class, sample model points on its surface.
     for class_i, class_name in enumerate(config["objects"].keys()):
-        class_rbt = RigidBodyTree(config["objects"][class_name]["model_path"])
+        class_rbt = RigidBodyTree()
+        frame = RigidBodyFrame("frame", class_rbt.world(),
+                               np.zeros(3), np.zeros(3))
+        model_path = config["objects"][class_name]["model_path"]
+        _, extension = os.path.splitext(model_path)
+        if extension == ".urdf":
+            AddModelInstanceFromUrdfFile(
+                model_path, FloatingBaseType.kFixed, frame, class_rbt)
+        elif extension == ".sdf":
+            AddModelInstancesFromSdfString(
+                open(model_path).read(), FloatingBaseType.kFixed, frame,
+                class_rbt)
+        else:
+            raise ValueError("Class %s has non-sdf and non-urdf model name." %
+                             class_name)
+
         # Sample model points
-        model_points, model_normals = sample_points_on_body(class_rbt, 1, 0.005)
+        model_points, model_normals = sample_points_on_body(class_rbt, 1,
+                                                            0.005)
         print "Sampled %d model points from model %s" % (
             model_points.shape[1], class_name)
         save_pointcloud(model_points, model_normals,
@@ -120,7 +136,7 @@ def do_model_pointcloud_sampling(args, config, vis=None, vis_prefix=None):
         if vis:
             model_pts_offset = (model_points.T + [class_i, 0., -1.0]).T
             draw_points(vis, vis_prefix, class_name, model_pts_offset,
-                        model_normals, size=0.001, normals_length=0.01)
+                        model_normals, size=0.0005, normals_length=0.00)
 
 
 if __name__ == "__main__":
@@ -136,6 +152,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     vis = None
+    vis_prefix = None
     if args.vis:
         vis_prefix = "render_scene"
         zmq_url = "tcp://127.0.0.1:6000"
@@ -232,8 +249,8 @@ if __name__ == "__main__":
             colors = cm.jet(label_separated_heights /
                             np.max(label_separated_heights)).T[0:3, :]
             draw_points(vis, vis_prefix, "%d" % i, points,
-                        normals=normals, colors=colors, size=0.005,
-                        normals_length=0.01)
+                        normals=normals, colors=colors, size=0.0005,
+                        normals_length=0.00)
 
         all_points.append(points)
         all_points_normals.append(normals)
@@ -242,7 +259,7 @@ if __name__ == "__main__":
         # Calculate distance to each object instance
         for instance_j, instance_config in enumerate(config["instances"]):
             this_kinsol = single_object_rbts[instance_j].doKinematics(
-                np.zeros(0))
+                np.zeros(6))
             phi, _, _, _, _ = single_object_rbts[instance_j]\
                 .collisionDetectFromPoints(this_kinsol,
                                            points, use_margins=False)
@@ -264,7 +281,7 @@ if __name__ == "__main__":
               these_points.shape[1], " points."
 
         # For every object...
-        segmentation_distances = [0.005, 0.01, 0.05, 0.1]
+        segmentation_distances = [0.005, 0.01, 0.02, 0.03, 0.04, 0.05, 0.1]
         for instance_j, instance_config in enumerate(config["instances"]):
             # Find objects within each segmentation distance
             for segmentation_distance in segmentation_distances:
