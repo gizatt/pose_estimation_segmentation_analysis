@@ -10,8 +10,6 @@ from sklearn.neighbors import NearestNeighbors
 import struct
 import time
 import trimesh
-import torch
-import torch.optim
 
 from pydrake.all import (
     AngleAxis,
